@@ -1,0 +1,20 @@
+FoloOS 编程伴侣 Mac 图形安装器 1.0.1-test（build 2）
+
+修复：
+- 优先使用稳定的 ~/.local/bin/codex，避免 LaunchAgent 误选应用包内的 Codex。
+- 项目或任务目录在 Wi-Fi 发送中断时保留，并在设备重新认证后完整重发，避免一直停在“正在读取这个项目的任务”。
+
+未修改：
+- 设备固件。
+- Codex 登录信息、任务、项目或用户配置。
+- codex_backend.py 和 GUI 主程序。
+
+验证：
+- Python 资源语法检查通过。
+- Codex 稳定路径优先级回归测试通过。
+- 任务目录断线重放回归测试通过。
+- App 为 arm64 + x86_64 通用二进制，ad-hoc 签名验证通过。
+- DMG CRC 校验通过。
+
+说明：
+- 此社区测试版仍未使用 Apple Developer ID 签名或公证，首次打开方式与 v1 相同。
