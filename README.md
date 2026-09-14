@@ -5,6 +5,19 @@
 > [!IMPORTANT]
 > 这是非官方社区衍生版本，不是 FoloToy 官方固件，也不由 FoloToy 或 OpenAI 提供支持。刷机有风险，请先阅读[安装指南](INSTALL.md)，并保留官方固件恢复方式。
 
+## 源码与二次开发
+
+**2026-09-14：公开 FoloOS 源码。** 包含现有四个应用、BSP 硬件驱动、Mac / Windows 桥接源码、必要图片与字体资源、音频和主机测试。
+
+- [下载源码包 ZIP](https://github.com/lululu59/FoloOS-AI-Passport-community/raw/refs/heads/main/FoloOS-source-20260914.zip)
+- [如何编译、添加自己的小应用](DEVELOPMENT.md)
+- [最小 Hello 应用示例](examples/app_hello.c)
+- [本次源码发布验证记录](docs/SOURCE_RELEASE_20260914.md)
+
+你可以下载或 Fork 本仓库，修改源码后编译并刷入自己的设备。当前小应用与系统一起编译，尚不支持独立应用包安装。需要 ESP-IDF 5.5.3；新应用按文档追加到菜单，保留已有功能。
+
+此源码包是 2026-09-14 整理的开发快照，不承诺与此前上传的完整固件逐字节对应；之前发布的固件和 Mac 安装器保留原样。
+
 ## 已包含
 
 - **编程伴侣**：通过局域网连接 Mac，选择 Codex 项目/任务、语音下达指令、查看状态与审批。
@@ -15,11 +28,11 @@
 
 ## 下载与安装
 
-请只从本仓库的 **Releases** 页面下载：
+现有设备固件和 Mac 安装器位于本仓库文件列表：
 
-1. `FoloOS-AI-Passport-community-20260825-full.bin`：设备完整固件。
-2. `FoloOS-Codex-Mac-GUI-Installer-community-20260830-v2.dmg`：Mac 编程伴侣安装器。
-3. `SHA256SUMS.txt`：文件完整性校验值。
+1. [设备完整固件](https://github.com/lululu59/FoloOS-AI-Passport-community/raw/refs/heads/main/FoloOS-AI-Passport-community-20260825-full.bin)。
+2. [Mac 编程伴侣安装器](https://github.com/lululu59/FoloOS-AI-Passport-community/raw/refs/heads/main/FoloOS-Codex-Mac-GUI-Installer-community-20260830-v2.dmg)。
+3. [SHA256SUMS.txt](SHA256SUMS.txt)：固件、安装器和源码包的文件完整性校验值。
 
 完整步骤见：[INSTALL.md](INSTALL.md)
 
