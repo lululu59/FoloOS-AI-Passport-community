@@ -6,7 +6,10 @@ components/bsp/include/bsp_pins.h. The board has 8 MB Flash and no PSRAM.
 
 Keep hardware logic in components/bsp and application code in main/app_*.c.
 Follow main/app.h: enter, exit and key. Append new applications to APPS[];
-preserve the existing four entries and their indices. Long UP returns home.
+preserve the existing four entries and their indices in the default build.
+Custom installation profiles may omit Pomodoro and Word Bear using
+CONFIG_FOLOOS_APP_*; keep conditional menu entries and indices aligned, and
+exclude disabled applications' sources and embedded audio. Long UP returns home.
 Use four-space C indentation, snake_case, static for internal symbols and s_
 for file-local state. Never block the LVGL/button callback with audio or networking.
 

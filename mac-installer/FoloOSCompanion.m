@@ -31,7 +31,7 @@
 }
 @end
 
-@interface AppDelegate : NSObject <NSApplicationDelegate>
+@interface AppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property(nonatomic, strong) NSWindow *window;
 @property(nonatomic, strong) FoloStatusValue *codexStatus;
 @property(nonatomic, strong) FoloStatusValue *serviceStatus;
@@ -42,6 +42,13 @@
 @property(nonatomic, strong) NSButton *installButton;
 @property(nonatomic, strong) NSButton *wifiButton;
 @property(nonatomic, strong) NSButton *refreshButton;
+@property(nonatomic, strong) NSButton *firmwareButton;
+@property(nonatomic, strong) NSButton *pomodoroChoice;
+@property(nonatomic, strong) NSButton *wordBearChoice;
+@property(nonatomic, strong) NSTextField *firmwareSummary;
+@property(nonatomic, strong) NSDictionary *firmwareCatalog;
+@property(nonatomic, strong) NSButton *firmwareConfirmButton;
+@property(nonatomic) BOOL firmwareInstalling;
 @end
 
 @implementation AppDelegate
@@ -89,6 +96,14 @@
     return YES;
 }
 
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+    return self.firmwareInstalling ? NSTerminateCancel : NSTerminateNow;
+}
+
+- (BOOL)windowShouldClose:(NSWindow *)sender {
+    return !self.firmwareInstalling;
+}
+
 - (NSArray<NSView *> *)statusRow:(NSString *)title value:(FoloStatusValue *)value {
     NSTextField *name = [NSTextField labelWithString:title];
     name.font = [NSFont systemFontOfSize:13 weight:NSFontWeightMedium];
@@ -101,13 +116,14 @@
 
 - (void)buildWindow {
     self.window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, 650, 620)
+        initWithContentRect:NSMakeRect(0, 0, 650, 675)
         styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable
         backing:NSBackingStoreBuffered
         defer:NO];
     self.window.title = @"FoloOS 编程伴侣";
     [self.window center];
     self.window.releasedWhenClosed = NO;
+    self.window.delegate = self;
 
     NSTextField *title = [NSTextField labelWithString:@"FoloOS 编程伴侣"];
     title.font = [NSFont systemFontOfSize:26 weight:NSFontWeightBold];
@@ -169,6 +185,15 @@
     buttons.spacing = 10;
     buttons.distribution = NSStackViewDistributionFillEqually;
 
+    self.firmwareButton = [NSButton buttonWithTitle:@"自定义安装应用…" target:self action:@selector(customizeFirmware:)];
+    self.firmwareButton.bezelStyle = NSBezelStyleRounded;
+    NSTextField *firmwareNote = [NSTextField labelWithString:@"选择离线应用，通过已配对的 Wi-Fi 安装到设备"];
+    firmwareNote.font = [NSFont systemFontOfSize:12];
+    firmwareNote.textColor = NSColor.secondaryLabelColor;
+    NSStackView *firmwareRow = [NSStackView stackViewWithViews:@[self.firmwareButton, firmwareNote]];
+    firmwareRow.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    firmwareRow.spacing = 10;
+
     self.progress = [NSProgressIndicator new];
     self.progress.style = NSProgressIndicatorStyleSpinning;
     self.progress.controlSize = NSControlSizeSmall;
@@ -198,7 +223,7 @@
     note.font = [NSFont systemFontOfSize:12];
     note.maximumNumberOfLines = 2;
 
-    NSStackView *root = [NSStackView stackViewWithViews:@[header, statusBox, buttons, outputHeader, scroll, note]];
+    NSStackView *root = [NSStackView stackViewWithViews:@[header, statusBox, buttons, firmwareRow, outputHeader, scroll, note]];
     root.orientation = NSUserInterfaceLayoutOrientationVertical;
     root.alignment = NSLayoutAttributeLeading;
     root.spacing = 16;
@@ -265,6 +290,7 @@
     self.installButton.enabled = !busy;
     self.wifiButton.enabled = !busy;
     self.refreshButton.enabled = !busy;
+    self.firmwareButton.enabled = !busy;
     if (busy) {
         [self.progress startAnimation:nil];
     } else {
@@ -426,6 +452,143 @@
             }
         });
     });
+}
+
+- (NSString *)firmwareDirectory {
+    return [[self.resourcesURL URLByAppendingPathComponent:@"firmware" isDirectory:YES] path];
+}
+
+- (NSArray<NSString *> *)selectedOfflineApps {
+    NSMutableArray<NSString *> *apps = [NSMutableArray array];
+    if (self.pomodoroChoice.state == NSControlStateValueOn) [apps addObject:@"pomodoro"];
+    if (self.wordBearChoice.state == NSControlStateValueOn) [apps addObject:@"word_bear"];
+    return apps;
+}
+
+- (void)updateFirmwareSummary:(id)sender {
+    NSSet *selected = [NSSet setWithArray:self.selectedOfflineApps];
+    NSDictionary *match = nil;
+    NSUInteger fullSize = 0;
+    for (NSDictionary *variant in self.firmwareCatalog[@"variants"]) {
+        if ([variant[@"apps"] count] == 2) fullSize = [variant[@"size_bytes"] unsignedIntegerValue];
+        if ([[NSSet setWithArray:variant[@"apps"]] isEqualToSet:selected]) match = variant;
+    }
+    self.firmwareConfirmButton.enabled = match != nil;
+    if (!match) {
+        self.firmwareSummary.stringValue = @"安装包不包含此组合，请重新获取完整安装包。";
+        return;
+    }
+    NSUInteger size = [match[@"size_bytes"] unsignedIntegerValue];
+    NSUInteger capacity = [self.firmwareCatalog[@"slot_bytes"] unsignedIntegerValue];
+    self.firmwareSummary.stringValue = [NSString stringWithFormat:
+        @"固件 %.1f KiB / %.0f KiB\n剩余 %.1f KiB · 比完整版本节省 %.1f KiB",
+        size / 1024.0, capacity / 1024.0, (capacity - size) / 1024.0,
+        fullSize > size ? (fullSize - size) / 1024.0 : 0.0];
+}
+
+- (void)customizeFirmware:(id)sender {
+    NSString *python = self.pythonPath;
+    if (!python) {
+        [self showAlert:@"缺少 Python 3 运行环境" message:@"无法运行固件安装程序。"];
+        return;
+    }
+    [self setBusy:YES message:@"正在校验安装包内的固件和容量信息…"];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSDictionary *result = [self runCommand:python arguments:@[
+            [[self.toolsURL URLByAppendingPathComponent:@"firmware_catalog.py"] path],
+            @"--directory", self.firmwareDirectory, @"--catalog"
+        ]];
+        NSData *data = [result[@"output"] dataUsingEncoding:NSUTF8StringEncoding];
+        id catalog = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self setBusy:NO message:nil];
+            if ([result[@"code"] intValue] != 0 || ![catalog isKindOfClass:NSDictionary.class]) {
+                [self display:result[@"output"]];
+                [self showAlert:@"无法读取自定义固件" message:result[@"output"]];
+                return;
+            }
+            self.firmwareCatalog = catalog;
+            [self display:@"固件校验通过，可以选择要安装的离线应用。"];
+            [self chooseFirmwareWithPython:python];
+        });
+    });
+}
+
+- (void)chooseFirmwareWithPython:(NSString *)python {
+    self.pomodoroChoice = [NSButton checkboxWithTitle:@"番茄专注" target:self action:@selector(updateFirmwareSummary:)];
+    self.wordBearChoice = [NSButton checkboxWithTitle:@"单词熊（词库与离线发音）" target:self action:@selector(updateFirmwareSummary:)];
+    NSArray *saved = [NSUserDefaults.standardUserDefaults arrayForKey:@"offlineApps"];
+    self.pomodoroChoice.state = (!saved || [saved containsObject:@"pomodoro"]) ? NSControlStateValueOn : NSControlStateValueOff;
+    self.wordBearChoice.state = (!saved || [saved containsObject:@"word_bear"]) ? NSControlStateValueOn : NSControlStateValueOff;
+    NSTextField *base = [NSTextField labelWithString:@"始终安装：编程伴侣、系统设置"];
+    base.textColor = NSColor.secondaryLabelColor;
+    self.firmwareSummary = [NSTextField labelWithString:@""];
+    self.firmwareSummary.maximumNumberOfLines = 2;
+    NSStackView *stack = [NSStackView stackViewWithViews:@[base, self.pomodoroChoice, self.wordBearChoice, self.firmwareSummary]];
+    stack.orientation = NSUserInterfaceLayoutOrientationVertical;
+    stack.alignment = NSLayoutAttributeLeading;
+    stack.spacing = 12;
+    stack.frame = NSMakeRect(0, 0, 410, 140);
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = @"选择要安装的离线应用";
+    alert.informativeText = @"将通过 Wi-Fi 更新整份固件并重启设备。未勾选的应用及专属资源不会写入；Wi-Fi 设置和已有学习进度保留。需要设备已配对并连接同一局域网。下方选项是本次安装选择。";
+    alert.accessoryView = stack;
+    self.firmwareConfirmButton = [alert addButtonWithTitle:@"安装到设备"];
+    [alert addButtonWithTitle:@"取消"];
+    [self updateFirmwareSummary:nil];
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+    NSArray<NSString *> *apps = self.selectedOfflineApps;
+    self.firmwareInstalling = YES;
+    [self setBusy:YES message:@"正在暂停桥接并安装所选固件，请保持设备供电和 Wi-Fi 连接…"];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        BOOL wasRunning = [[self runCommand:@"/bin/launchctl" arguments:@[@"print", self.serviceName]][@"code"] intValue] == 0;
+        if (wasRunning) [self stopService];
+        NSMutableArray *arguments = [NSMutableArray arrayWithArray:@[
+            @"-u", [[self.toolsURL URLByAppendingPathComponent:@"firmware_catalog.py"] path],
+            @"--directory", self.firmwareDirectory, @"--install", @"--apps"
+        ]];
+        [arguments addObjectsFromArray:apps];
+        NSDictionary *result = [self runFirmwareCommand:python arguments:arguments];
+        if (wasRunning) [self startServiceIfInstalled];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.firmwareInstalling = NO;
+            [self setBusy:NO message:nil];
+            [self display:result[@"output"]];
+            if ([result[@"code"] intValue] == 0) {
+                [NSUserDefaults.standardUserDefaults setObject:apps forKey:@"offlineApps"];
+                [self showAlert:@"固件更新完成" message:@"设备将重启并显示所选应用。请在设备上确认菜单和应用可正常使用。"];
+            } else {
+                [self showAlert:@"固件安装未完成" message:result[@"output"]];
+            }
+        });
+    });
+}
+
+- (NSDictionary *)runFirmwareCommand:(NSString *)python arguments:(NSArray<NSString *> *)arguments {
+    NSTask *task = [NSTask new];
+    task.executableURL = [NSURL fileURLWithPath:python];
+    task.arguments = arguments;
+    NSPipe *pipe = [NSPipe pipe];
+    task.standardOutput = pipe;
+    task.standardError = pipe;
+    NSError *error = nil;
+    if (![task launchAndReturnError:&error]) {
+        return @{@"code": @127, @"output": error.localizedDescription ?: @"无法启动安装程序"};
+    }
+    NSMutableData *output = [NSMutableData data];
+    for (;;) {
+        NSData *chunk = pipe.fileHandleForReading.availableData;
+        if (!chunk.length) break;
+        [output appendData:chunk];
+        NSString *text = [[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding];
+        if (text) dispatch_async(dispatch_get_main_queue(), ^{
+            self.outputView.string = text;
+            [self.outputView scrollToEndOfDocument:nil];
+        });
+    }
+    [task waitUntilExit];
+    NSString *text = [[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding] ?: @"无法解码安装日志";
+    return @{@"code": @(task.terminationStatus), @"output": text};
 }
 
 - (void)showCodexHelp {

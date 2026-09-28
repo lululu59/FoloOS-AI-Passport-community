@@ -10,11 +10,22 @@ CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
 STAGE="$BUILD/dmg"
-RELEASE="$ROOT/releases/community-20260825"
-DMG="$RELEASE/FoloOS-Codex-Mac-GUI-Installer-community-20260830-v1.dmg"
+RELEASE="$ROOT/releases/custom-apps"
+DMG="$RELEASE/FoloOS-Codex-Mac-Custom-Installer.dmg"
+
+# Build on the developer's machine; end users only select a bundled image.
+if [[ "${1:-}" == "--reuse-firmware" ]]; then
+    python3 "$ROOT/tools/firmware_catalog.py" --directory "$ROOT/build/firmware" --catalog >/dev/null
+elif [[ $# == 0 ]]; then
+    python3 "$ROOT/tools/build_firmware_variants.py"
+else
+    echo "用法：$0 [--reuse-firmware]" >&2
+    exit 2
+fi
 
 rm -rf "$BUILD"
 mkdir -p "$MACOS" "$RESOURCES/tools" "$STAGE" "$RELEASE"
+cp -R "$ROOT/build/firmware" "$RESOURCES/firmware"
 
 for ARCH in arm64 x86_64; do
     xcrun --sdk macosx clang \
@@ -37,6 +48,7 @@ for FILE in \
     mac_bridge.py \
     codex_backend.py \
     install_autostart.py \
+    firmware_catalog.py \
     mac_speech_helper.m \
     mac_speech_helper-Info.plist
 do

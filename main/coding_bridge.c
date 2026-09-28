@@ -62,6 +62,7 @@ static const char *json_string(const cJSON *root, const char *key)
                : "";
 }
 
+#if CONFIG_FOLOOS_APP_WORD_BEAR
 static uint32_t json_u32(const cJSON *root, const char *key)
 {
     const cJSON *value = cJSON_GetObjectItemCaseSensitive(root, key);
@@ -69,6 +70,8 @@ static uint32_t json_u32(const cJSON *root, const char *key)
     if (value->valuedouble > (double)UINT32_MAX) return UINT32_MAX;
     return (uint32_t)value->valuedouble;
 }
+
+#endif
 
 static long_text_target_t long_text_target(const char *name)
 {
@@ -236,6 +239,7 @@ bool coding_bridge_is_connected(void)
     return s_connected;
 }
 
+#if CONFIG_FOLOOS_APP_WORD_BEAR
 bool coding_bridge_request_word_audio(int id, const char *word)
 {
     cJSON *root = event_create("word_bear_audio_request");
@@ -294,6 +298,8 @@ bool coding_bridge_send_word_bear_sync_end(uint32_t revision)
     if (root != NULL) cJSON_AddNumberToObject(root, "revision", revision);
     return send_json(root);
 }
+
+#endif
 
 static void send_wifi_status(const char *status, const char *ip)
 {
@@ -670,6 +676,7 @@ static bool dispatch_message(const cJSON *root)
         s_speech_playing = false;
         return true;
     }
+#if CONFIG_FOLOOS_APP_WORD_BEAR
     if (strcmp(type, "word_bear_day") == 0) {
         const cJSON *day = cJSON_GetObjectItemCaseSensitive(root, "day");
         if (cJSON_IsNumber(day) && day->valuedouble > 0) {
@@ -707,6 +714,10 @@ static bool dispatch_message(const cJSON *root)
         app_word_bear_restore_end();
         return true;
     }
+#else
+    /* Older bridges still send word sync messages after authentication. */
+    if (strncmp(type, "word_bear_", 10) == 0) return true;
+#endif
 
     if (!bsp_lvgl_lock(500)) {
         return true;

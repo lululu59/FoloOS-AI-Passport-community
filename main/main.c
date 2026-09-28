@@ -23,15 +23,23 @@ static const char *TAG = "main";
 
 enum {
     APP_CODING_INDEX = 0,
+#if CONFIG_FOLOOS_APP_POMODORO
     APP_POMODORO_INDEX,
+#endif
+#if CONFIG_FOLOOS_APP_WORD_BEAR
     APP_WORD_BEAR_INDEX,
+#endif
     APP_SETTINGS_INDEX,
 };
 
 static const app_entry_t APPS[] = {
     { "编程伴侣", &ui_icon_coding,    app_coding_enter,   app_coding_exit,   app_coding_key   },
+#if CONFIG_FOLOOS_APP_POMODORO
     { "番茄专注", &ui_icon_pomodoro,  app_pomodoro_enter, app_pomodoro_exit, app_pomodoro_key },
+#endif
+#if CONFIG_FOLOOS_APP_WORD_BEAR
     { "单词熊",   &ui_icon_word_bear, app_word_bear_enter, app_word_bear_exit, app_word_bear_key },
+#endif
     { "系统设置", &ui_icon_settings,  app_settings_enter, app_settings_exit, app_settings_key },
 };
 #define APP_COUNT (sizeof(APPS) / sizeof(APPS[0]))
@@ -261,8 +269,11 @@ static void on_key(bsp_btn_t btn, bsp_btn_ev_t ev, void *user) {
         if (ev == BSP_BTN_CLICK && (btn == BSP_BTN_UP || btn == BSP_BTN_DOWN)) {
             ui_sfx_play(UI_SFX_MOVE);
         } else if (ev == BSP_BTN_CLICK && btn == BSP_BTN_OK &&
-                   !(s_active == APP_CODING_INDEX && app_coding_ok_is_record_action()) &&
-                   s_active != APP_WORD_BEAR_INDEX) {
+                   !(s_active == APP_CODING_INDEX && app_coding_ok_is_record_action())
+#if CONFIG_FOLOOS_APP_WORD_BEAR
+                   && s_active != APP_WORD_BEAR_INDEX
+#endif
+                   ) {
             ui_sfx_play(UI_SFX_CONFIRM);
         }
         APPS[s_active].key(btn, ev);

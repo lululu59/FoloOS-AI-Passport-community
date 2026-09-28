@@ -2,6 +2,11 @@
 
 这份源码可以修改、编译，并刷入 FoloToy AI Passport。应用和 FoloOS 一起编译；目前不支持把单独的应用包安装进已刷好的系统。
 
+Mac 安装器现在支持勾选“番茄专注”和“单词熊”，安装对应的预编译固件。
+未选择的应用代码和专属音频不会进入镜像；编程伴侣、系统设置始终保留。
+这是整份固件更新，不是动态应用包安装。默认开发构建仍包含原来的四个应用。
+安装入口、构建方式与真机验收见 [Mac 安装器说明](mac-installer/README.md)。
+
 ## 1. 获取源码
 
 ```sh
@@ -69,6 +74,22 @@ idf.py build
 硬件依据见 [BSP 引脚定义](components/bsp/include/bsp_pins.h) 与 [硬件开发指南](docs/AI_HARDWARE_DEVELOPMENT_GUIDE.md)。后者包含上游 BSP 和历史分支说明，当前应用入口以 `main/main.c` 为准。
 
 ## 5. 字体与素材
+
+### 可选应用的构建开关
+
+`main/Kconfig.projbuild` 提供 `CONFIG_FOLOOS_APP_POMODORO` 和
+`CONFIG_FOLOOS_APP_WORD_BEAR`，默认均为 `y`。可以通过 `idf.py menuconfig`
+中的 FoloOS applications 设置。`main/CMakeLists.txt` 按开关选择源码和 WAV；
+菜单及索引采用相同条件，完整版本的顺序不变。单词熊关闭时，设备忽略旧桥接
+发送的单词同步消息，保留 NVS 学习记录，方便以后重新安装。
+
+激活 ESP-IDF 5.5.3 后运行 `python3 tools/build_firmware_variants.py`，会在
+`build/firmware/` 生成四种组合及含真实容量、SHA-256 的 `manifest.json`。
+各组合在独立构建目录使用自己的 sdkconfig，不修改根目录的 sdkconfig。
+开发者增加更多可选应用时，需要一起扩展构建清单、选择界面和组合测试；
+当前安装器仅支持上述两个离线应用。
+
+### 字体生成
 
 预生成资源已经可以直接构建。需要扩充字体时，可安装 `lv_font_conv@1.5.3`，然后运行 `sh tools/generate_pixel_fonts.sh`。工具默认从 PATH 查找 `lv_font_conv`，也可通过 `LV_FONT_CONV` 指定可执行文件；字体默认使用 `third_party/fusion-pixel-font/` 中的 OTF。`FOLOOS_FONT` 可指定另一字体文件。字体遵循同目录的 OFL 许可。
 

@@ -1,0 +1,11 @@
+menu "FoloOS applications"
+
+config FOLOOS_APP_POMODORO
+    bool "Include Pomodoro"
+    default y
+
+config FOLOOS_APP_WORD_BEAR
+    bool "Include Word Bear (including vocabulary and offline audio)"
+    default y
+
+endmenu
